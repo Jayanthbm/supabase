@@ -151,4 +151,56 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+
+-- Define the RPC function to fetch tag reports
+CREATE OR REPLACE FUNCTION get_transaction_tags_summary()
+RETURNS JSONB AS $$
+  WITH sq AS (
+    SELECT
+      tg.id AS tag_id,
+      tg.name AS tag_name,
+      SUM(t.amount) AS amount
+    FROM
+      transactiontags tt
+    LEFT JOIN
+      transactions t ON t.id = tt.transaction_id
+    LEFT JOIN
+      tags tg ON tg.id = tt.tag_id
+    GROUP BY
+      tg.id, tg.name
+    ORDER BY
+      amount DESC
+  )
+  SELECT json_agg(row_to_json(sq)) FROM sq;
+$$ LANGUAGE sql STABLE;
+
+
+CREATE OR REPLACE FUNCTION get_transactions_by_tagid(tagid INTEGER)
+RETURNS JSONB AS $$
+  WITH sq AS (
+    SELECT
+      t.id,
+      t.date_iso,
+      t.date,
+      t.account,
+      t.category,
+      t.subcategory,
+      t.amount,
+      t.converted_amount_inr,
+      t.type,
+      t.person_company,
+      t.description,
+      t.formatted_date
+    FROM
+      transactions t
+    LEFT JOIN
+      transactiontags tt ON t.id = tt.transaction_id
+    WHERE
+      tt.tag_id = tagid
+    ORDER BY
+      t.formatted_date DESC
+  )
+  SELECT json_agg(row_to_json(sq)) FROM sq;
+$$ LANGUAGE sql STABLE;
+
 COMMIT;
